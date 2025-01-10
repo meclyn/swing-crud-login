@@ -1,6 +1,5 @@
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.sql.*;
 import com.formdev.flatlaf.FlatDarkLaf;
 
@@ -174,56 +173,58 @@ public class Main extends JFrame {
     }
 
     private void abrirDashboard() {
-        JFrame dashboardFrame = new JFrame("Login");
-        dashboardFrame.setSize(400, 300);
-        dashboardFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        dashboardFrame.setLayout(new FlowLayout());
+        JFrame loginFrame = new JFrame("Login");
+        loginFrame.setSize(300, 200);
+        loginFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        loginFrame.setLayout(new GridLayout(3, 2));
 
         JLabel userLabel = new JLabel("Usuário:");
-        JTextField t1 = new JTextField();
-        t1.setPreferredSize(new Dimension(300, 30));
+        JTextField userField = new JTextField();
 
         JLabel passLabel = new JLabel("Senha:");
-        JPasswordField t2 = new JPasswordField();
-        t2.setPreferredSize(new Dimension(300, 30));
+        JPasswordField passField = new JPasswordField();
 
-        JButton b1 = new JButton("Login");
+        JButton loginButton = new JButton("Login");
 
-        // Adicionando placeholders
-        PlaceHolderUtil.addPlaceholder(t1, "Digite seu nome");
-        PlaceHolderUtil.addPlaceholder(t2, "Digite sua senha");
+        loginFrame.add(userLabel);
+        loginFrame.add(userField);
+        loginFrame.add(passLabel);
+        loginFrame.add(passField);
+        loginFrame.add(new JLabel());
+        loginFrame.add(loginButton);
 
-        b1.addActionListener(e -> {
-            String username = t1.getText();
-            String password = new String(t2.getPassword());
+        loginFrame.setLocationRelativeTo(null);
+        loginFrame.setVisible(true);
 
-            if (username.equals("matheus") && password.equals("123")) {
-                JOptionPane.showMessageDialog(
-                        dashboardFrame,
-                        "Bem-vindo, " + username + "!",
-                        "Login Bem-sucedido",
-                        JOptionPane.INFORMATION_MESSAGE
-                );
-                dashboardFrame.dispose();
+        loginButton.addActionListener(e -> {
+            String username = userField.getText();
+            String password = new String(passField.getPassword());
+
+            if (validarLogin(username, password)) {
+                JOptionPane.showMessageDialog(loginFrame, "Login bem-sucedido!");
+                loginFrame.dispose();
                 abrirNovoDashboard();
             } else {
-                JOptionPane.showMessageDialog(
-                        dashboardFrame,
-                        "Usuário ou senha inválidos!",
-                        "Erro de Login",
-                        JOptionPane.ERROR_MESSAGE
-                );
+                JOptionPane.showMessageDialog(loginFrame, "Usuário ou senha inválidos!", "Erro de Login", JOptionPane.ERROR_MESSAGE);
             }
         });
+    }
 
-        dashboardFrame.add(userLabel);
-        dashboardFrame.add(t1);
-        dashboardFrame.add(passLabel);
-        dashboardFrame.add(t2);
-        dashboardFrame.add(b1);
+    private boolean validarLogin(String email, String senha) {
+        String sql = "SELECT * FROM tab_usuario WHERE email = ? AND senha = ?";
 
-        dashboardFrame.setLocationRelativeTo(null);
-        dashboardFrame.setVisible(true);
+        try (Connection conn = conectar();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email);
+            stmt.setString(2, senha);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     private void abrirNovoDashboard() {
@@ -232,12 +233,51 @@ public class Main extends JFrame {
         novoFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         novoFrame.setLayout(new BorderLayout());
 
-        JLabel welcomeLabel = new JLabel("Bem-vindo ao Dashboard!", JLabel.CENTER);
+        JLabel welcomeLabel = new JLabel("Bem-vindo ao Feed!", JLabel.CENTER);
         welcomeLabel.setFont(new Font("Arial", Font.BOLD, 16));
         novoFrame.add(welcomeLabel, BorderLayout.CENTER);
 
+        // painel na parte inferior
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+
+        // caixa de entrada de texto
+        JTextField inputField = new JTextField();
+        inputField.setPreferredSize(new Dimension(300, 30));
+
+        //botao de envio
+        JButton sendButton = new JButton("Enviar");
+        sendButton.addActionListener(e -> {
+            String mensagem = inputField.getText().trim();
+            if (!mensagem.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                        novoFrame,
+                        "Mensagem enviada: " + mensagem,
+                        "Sucesso",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+                inputField.setText(""); //limpa caixa de texto
+            } else {
+                JOptionPane.showMessageDialog(
+                        novoFrame,
+                        "A mensagem não pode estar vazia.",
+                        "Erro",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        });
+
+        //add os componentes do painel inferior
+        bottomPanel.add(inputField, BorderLayout.CENTER);
+        bottomPanel.add(sendButton, BorderLayout.EAST);
+
+        // add o painel inferior ao frame
+        novoFrame.add(bottomPanel, BorderLayout.SOUTH);
+
+
         novoFrame.setLocationRelativeTo(null);
         novoFrame.setVisible(true);
+
+
     }
 
     public static void main(String[] args) {
@@ -249,4 +289,32 @@ public class Main extends JFrame {
 
         SwingUtilities.invokeLater(Main::new);
     }
+
+    private void criarPostagem(String conteudo, int idUsuario) {
+        String sql = "INSERT INTO tab_postagens (conteudo, id_usuario) VALUES (?, ?)";
+        try (Connection conn = conectar(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, conteudo);
+            stmt.setInt(2, idUsuario);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private void listarPostagens() {
+        String sql = "SELECT p.id, u.nome, p.conteudo, p.data_postagem FROM tab_postagens p " +
+                "JOIN tab_usuario u ON p.id_usuario = u.id ORDER BY p.data_postagem DESC";
+        try (Connection conn = conectar(); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery()) {
+            outputArea.setText("--- Feed de Postagens ---\n");
+            while (rs.next()) {
+                outputArea.append("[" + rs.getTimestamp("data_postagem") + "] " +
+                        rs.getString("nome") + ": " + rs.getString("conteudo") + "\n");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 }
